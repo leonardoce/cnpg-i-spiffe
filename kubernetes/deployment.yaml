@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: spiffe
+  name: spiffe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spiffe
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: spiffe
+    spec:
+      serviceAccountName: spiffe
+      containers:
+      - image: cnpg-i-spiffe:latest
+        name: cnpg-i-spiffe
+        ports:
+        - containerPort: 9090
+          protocol: TCP
+        args:
+        - plugin
+        - --server-cert=/server/tls.crt
+        - --server-key=/server/tls.key
+        - --client-cert=/client/tls.crt
+        - --server-address=:9090
+        volumeMounts:
+        - mountPath: /server
+          name: server
+        - mountPath: /client
+          name: client
+        resources: {}
+      volumes:
+      - name: server
+        secret:
+          secretName: spiffe-server-tls
+      - name: client
+        secret:
+          secretName: spiffe-client-tls

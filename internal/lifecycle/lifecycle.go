@@ -1,0 +1,141 @@
+/*
+Copyright © contributors to CloudNativePG, established as
+CloudNativePG a Series of LF Projects, LLC.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
+package lifecycle
+
+import (
+	"context"
+	"errors"
+
+	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/common"
+	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/decoder"
+	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/object"
+	"github.com/cloudnative-pg/cnpg-i/pkg/lifecycle"
+	"github.com/cloudnative-pg/machinery/pkg/log"
+
+	"github.com/leonardoce/cnpg-i-spiffe/internal/config"
+	"github.com/leonardoce/cnpg-i-spiffe/internal/utils"
+	"github.com/leonardoce/cnpg-i-spiffe/pkg/metadata"
+)
+
+// Implementation is the implementation of the lifecycle handler
+type Implementation struct {
+	lifecycle.UnimplementedOperatorLifecycleServer
+}
+
+// GetCapabilities exposes the lifecycle capabilities
+func (impl Implementation) GetCapabilities(
+	_ context.Context,
+	_ *lifecycle.OperatorLifecycleCapabilitiesRequest,
+) (*lifecycle.OperatorLifecycleCapabilitiesResponse, error) {
+	return &lifecycle.OperatorLifecycleCapabilitiesResponse{
+		LifecycleCapabilities: []*lifecycle.OperatorLifecycleCapabilities{
+			{
+				Group: "",
+				Kind:  "Pod",
+				OperationTypes: []*lifecycle.OperatorOperationType{
+					{
+						Type: lifecycle.OperatorOperationType_TYPE_CREATE,
+					},
+					{
+						Type: lifecycle.OperatorOperationType_TYPE_EVALUATE,
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+// LifecycleHook is called when creating Kubernetes services
+func (impl Implementation) LifecycleHook(
+	ctx context.Context,
+	request *lifecycle.OperatorLifecycleRequest,
+) (*lifecycle.OperatorLifecycleResponse, error) {
+	kind, err := utils.GetKind(request.GetObjectDefinition())
+	if err != nil {
+		return nil, err
+	}
+	operation := request.GetOperationType().GetType().Enum()
+	if operation == nil {
+		return nil, errors.New("no operation set")
+	}
+
+	//nolint: gocritic
+	switch kind {
+	case "Pod":
+		switch *operation {
+		case lifecycle.OperatorOperationType_TYPE_CREATE, lifecycle.OperatorOperationType_TYPE_EVALUATE:
+			return impl.reconcilePod(ctx, request)
+		}
+		// add any other custom logic to execute based on the operation
+	}
+
+	return &lifecycle.OperatorLifecycleResponse{}, nil
+}
+
+// reconcilePod is called when creating an instance Pod
+func (impl Implementation) reconcilePod(
+	ctx context.Context,
+	request *lifecycle.OperatorLifecycleRequest,
+) (*lifecycle.OperatorLifecycleResponse, error) {
+	cluster, err := decoder.DecodeClusterLenient(request.GetClusterDefinition())
+	if err != nil {
+		return nil, err
+	}
+
+	logger := log.FromContext(ctx).WithName("cnpg_i_spiffe_lifecycle")
+	helper := common.NewPlugin(
+		*cluster,
+		metadata.PluginName,
+	)
+
+	configuration := config.FromParameters(helper)
+
+	pod, err := decoder.DecodePodJSON(request.GetObjectDefinition())
+	if err != nil {
+		return nil, err
+	}
+
+	mutatedPod := pod.DeepCopy()
+
+	injectWorkloadAPIVolume(&mutatedPod.Spec, configuration.SpireAgentSocketPath)
+	injectCertsVolume(&mutatedPod.Spec, configuration.CertsMountPath, certsVolumeMedium(configuration.CertsVolumeMedium))
+
+	postgresUID, postgresGID := postgresUIDAndGID(&pod.Spec)
+	sidecar := buildSpiffeAgentContainer(configuration, postgresUID, postgresGID)
+	if err := injectPostgresSocketVolumeMount(&mutatedPod.Spec, sidecar, configuration.PostgresSocketDir); err != nil {
+		return nil, err
+	}
+
+	err = object.InjectPluginInitContainerSidecarSpec(&mutatedPod.Spec, sidecar, false)
+	if err != nil {
+		return nil, err
+	}
+
+	patch, err := object.CreatePatch(mutatedPod, pod)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug("generated patch", "content", string(patch), "configuration", configuration)
+
+	return &lifecycle.OperatorLifecycleResponse{
+		JsonPatch: patch,
+	}, nil
+}

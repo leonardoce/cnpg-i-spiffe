@@ -1,0 +1,17 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cluster-example
+spec:
+  instances: 1
+
+  plugins:
+  - name: cnpg-i-spiffe.cloudnative-pg.io
+    parameters:
+      sidecarImage: registry.dev:5000/cnpg-i-spiffe:latest
+      spireAgentSocketPath: /run/spire/sockets/agent.sock
+      certsMountPath: /spiffe-certs
+      certsVolumeMedium: Memory
+
+  storage:
+    size: 1Gi

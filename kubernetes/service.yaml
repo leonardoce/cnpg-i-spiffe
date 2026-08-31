@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: spiffe
+    cnpg.io/pluginName: cnpg-i-spiffe.cloudnative-pg.io
+  annotations:
+    cnpg.io/pluginClientSecret: spiffe-client-tls
+    cnpg.io/pluginServerSecret: spiffe-server-tls
+    cnpg.io/pluginPort: "9090"
+  name: spiffe
+spec:
+  ports:
+  - port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: spiffe

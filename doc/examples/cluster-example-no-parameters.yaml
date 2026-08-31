@@ -1,0 +1,18 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cluster-example
+spec:
+  instances: 3
+
+  plugins:
+  - name: cnpg-i-spiffe.cloudnative-pg.io
+    parameters:
+      # sidecarImage has no built-in default (there's no stable public tag
+      # for this plugin's own image), so it's the one parameter that must
+      # always be set explicitly; every other parameter below relies on the
+      # plugin's built-in defaults.
+      sidecarImage: registry.dev:5000/cnpg-i-spiffe:latest
+
+  storage:
+    size: 1Gi
