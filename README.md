@@ -22,16 +22,38 @@ For every instance Pod, the plugin:
    that socket — authenticated by `pg_hba.conf`'s default `local all all
    peer map=local` entry — and runs `SELECT pg_reload_conf();`, the same
    reload PostgreSQL performs on `SIGHUP`.
+5. Serves the CNPG-i `Postgres` service from the same sidecar process, over a
+   Unix socket under the `plugins` volume shared with the instance manager.
+   Its `EnrichConfiguration` RPC overrides the `ssl_ca_file` GUC to point at
+   the trust bundle written in step 3, so PostgreSQL verifies client
+   certificates against the SPIFFE trust domain.
 
-This currently covers the sidecar, volume/mount plumbing and reload trigger
-only: wiring the resulting certificate files into PostgreSQL's own TLS
-configuration (`ssl_cert_file`, `ssl_key_file`, `ssl_ca_file`) is not done by
-the plugin yet.
+Wiring `ssl_cert_file`/`ssl_key_file` (PostgreSQL's own server certificate)
+to the SVID written in step 3 is not done by the plugin yet — only
+`ssl_ca_file` is currently overridden.
 
 This plugin uses
 the [pluginhelper](https://github.com/cloudnative-pg/cnpg-i-machinery/tree/main/pkg/pluginhelper)
 from [`cnpg-i-machinery`](https://github.com/cloudnative-pg/cnpg-i-machinery) to
 simplify its implementation.
+
+## Limitations
+
+* **Single-instance clusters only.** When CloudNativePG bootstraps a new
+  replica, it invokes `pg_basebackup` against the primary with a hardcoded
+  certificate path, rather than the SVID/key/bundle paths this plugin wires
+  up via `EnrichConfiguration`. Until that path is made configurable (or this
+  plugin hooks into the bootstrap process too), only single-instance
+  `Cluster`s are supported.
+* **Relies on SPIRE copying the first DNS SAN into the certificate's CN.**
+  The SPIRE registration entry above passes `-dns streaming_replica`, adding
+  `streaming_replica` as the SVID's first DNS SAN. With SPIRE's current
+  behavior, that first DNS SAN is also copied into the certificate's CN
+  field. PostgreSQL's client-certificate authentication today only checks
+  the CN, not the SPIFFE ID carried in the SAN URI — so it's this incidental
+  DNS-to-CN copying, not a stable, documented SPIRE guarantee, that makes
+  authentication work. A future SPIRE change, or PostgreSQL gaining SAN URI
+  support, would require revisiting this.
 
 ## Configuration
 
@@ -155,3 +177,54 @@ examples in the `doc/examples` directory:
    lets the plugin apply its built-in defaults (SPIRE Agent socket path,
    certs volume settings, Postgres socket directory) for everything else
    when reconciling the Pod.
+
+### 6. Verify SPIFFE-authenticated connections
+
+The certificate the sidecar wrote to `/spiffe-certs` can authenticate a
+client connection as the `streaming_replica` role, without a password,
+because:
+
+* the plugin's `EnrichConfiguration` implementation set `ssl_ca_file` to the
+  SPIFFE trust bundle, so PostgreSQL verifies the client certificate against
+  it;
+* the SPIRE registration entry's `-dns streaming_replica` option made
+  `streaming_replica` both a SAN and (per the second limitation above) the
+  certificate's CN, which PostgreSQL's `cert` authentication method maps to
+  the role of the same name.
+
+Exec into the `postgres` container of `cluster-example-1` and connect with
+`psql`, presenting that certificate as the client cert:
+
+``` shell
+kubectl exec -it cluster-example-1 -c postgres -- psql \
+  "dbname=postgres host=cluster-example-rw user=streaming_replica sslmode=verify-full \
+   sslrootcert=/controller/certificates/server-ca.crt \
+   sslkey=/spiffe-certs/svid_key.pem sslcert=/spiffe-certs/svid.pem"
+```
+
+(`sslrootcert` here verifies the *server's* certificate — still the one
+CNPG itself manages, since the plugin only overrides `ssl_ca_file` — and is
+unrelated to the SPIFFE trust bundle used to verify the *client* certificate
+above.)
+
+The following confirms the connection was authenticated by certificate
+rather than by password, and shows the client certificate's DN — with
+`CN=streaming_replica`, per the second limitation above:
+
+``` sql
+SELECT usename, ssl, client_dn FROM pg_stat_ssl JOIN pg_stat_activity USING (pid)
+  WHERE pid = pg_backend_pid();
+```
+
+```
+psql (18.6 (Debian 18.6-1.pgdg13+2))
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, compression: off, ALPN: postgresql)
+Type "help" for help.
+
+postgres=> SELECT usename, ssl, client_dn FROM pg_stat_ssl JOIN pg_stat_activity USING (pid)
+postgres->   WHERE pid = pg_backend_pid();
+      usename      | ssl |             client_dn
+-------------------+-----+------------------------------------
+ streaming_replica | t   | /C=US/O=SPIRE/CN=streaming_replica
+(1 row)
+```

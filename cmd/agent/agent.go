@@ -50,6 +50,8 @@ func NewCmd() *cobra.Command {
 		"File name used to write the X.509 trust bundle")
 	flags.StringVar(&opts.PostgresSocketDir, "postgres-socket-dir", "/controller/run",
 		"Directory holding PostgreSQL's Unix socket, used to reload its configuration after every SVID rotation")
+	flags.StringVar(&opts.PluginPath, "plugin-path", "/plugins",
+		"Directory holding the Unix socket the CNPG-i Postgres service is served on, shared with the instance manager")
 	flags.StringVar(&opts.HealthCheckAddr, "health-check-address", ":8081",
 		"Address the health check HTTP server listens on")
 	flags.StringVar(&opts.HealthCheckLivenessPath, "health-check-liveness-path", "/live",

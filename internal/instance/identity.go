@@ -17,7 +17,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package identity
+// Package instance implements the CNPG-i services exposed by the plugin from
+// inside the PostgreSQL Pod, over the Unix socket shared with the instance
+// manager under the "plugins" volume.
+package instance
 
 import (
 	"context"
@@ -27,13 +30,16 @@ import (
 	"github.com/leonardoce/cnpg-i-spiffe/pkg/metadata"
 )
 
-// Implementation is the implementation of the identity service
-type Implementation struct {
+// IdentityImplementation is the identity service exposed on the
+// instance-side plugin socket. It is distinct from internal/identity's
+// Implementation, which is exposed on the operator-side plugin socket and
+// advertises a different set of capabilities.
+type IdentityImplementation struct {
 	identity.IdentityServer
 }
 
 // GetPluginMetadata implements the IdentityServer interface
-func (Implementation) GetPluginMetadata(
+func (IdentityImplementation) GetPluginMetadata(
 	context.Context,
 	*identity.GetPluginMetadataRequest,
 ) (*identity.GetPluginMetadataResponse, error) {
@@ -41,7 +47,7 @@ func (Implementation) GetPluginMetadata(
 }
 
 // GetPluginCapabilities implements the IdentityServer interface
-func (Implementation) GetPluginCapabilities(
+func (IdentityImplementation) GetPluginCapabilities(
 	context.Context,
 	*identity.GetPluginCapabilitiesRequest,
 ) (*identity.GetPluginCapabilitiesResponse, error) {
@@ -50,14 +56,7 @@ func (Implementation) GetPluginCapabilities(
 			{
 				Type: &identity.PluginCapability_Service_{
 					Service: &identity.PluginCapability_Service{
-						Type: identity.PluginCapability_Service_TYPE_LIFECYCLE_SERVICE,
-					},
-				},
-			},
-			{
-				Type: &identity.PluginCapability_Service_{
-					Service: &identity.PluginCapability_Service{
-						Type: identity.PluginCapability_Service_TYPE_INSTANCE_SIDECAR_INJECTION,
+						Type: identity.PluginCapability_Service_TYPE_POSTGRES,
 					},
 				},
 			},
@@ -66,7 +65,7 @@ func (Implementation) GetPluginCapabilities(
 }
 
 // Probe implements the IdentityServer interface
-func (Implementation) Probe(context.Context, *identity.ProbeRequest) (*identity.ProbeResponse, error) {
+func (IdentityImplementation) Probe(context.Context, *identity.ProbeRequest) (*identity.ProbeResponse, error) {
 	return &identity.ProbeResponse{
 		Ready: true,
 	}, nil

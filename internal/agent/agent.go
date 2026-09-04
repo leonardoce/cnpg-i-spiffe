@@ -26,9 +26,14 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
+	"github.com/cloudnative-pg/cnpg-i-machinery/pkg/pluginhelper/http"
+	"github.com/cloudnative-pg/cnpg-i/pkg/postgres"
 	"github.com/cloudnative-pg/machinery/pkg/log"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+
+	"github.com/leonardoce/cnpg-i-spiffe/internal/instance"
 )
 
 // Options configures the agent
@@ -49,6 +54,10 @@ type Options struct {
 	// PostgresSocketDir is the directory holding PostgreSQL's Unix socket,
 	// used to trigger a configuration reload after every SVID rotation
 	PostgresSocketDir string
+
+	// PluginPath is the directory holding the Unix socket this agent serves
+	// the CNPG-i Postgres service on, shared with the instance manager
+	PluginPath string
 
 	// HealthCheckAddr is the address the health check HTTP server listens on
 	HealthCheckAddr string
@@ -84,6 +93,25 @@ func Run(ctx context.Context, opts Options) error {
 		defer func() { _ = client.Close() }()
 
 		return client.WatchX509Context(ctx, watcher)
+	})
+
+	group.Go(func() error {
+		server := &http.Server{
+			IdentityImpl: instance.IdentityImplementation{},
+			Enrichers: []http.ServerEnricher{
+				func(s *grpc.Server) error {
+					postgres.RegisterPostgresServer(s, instance.PostgresImplementation{
+						CertsDir:           opts.CertsDir,
+						SVIDBundleFileName: opts.SVIDBundleFileName,
+					})
+
+					return nil
+				},
+			},
+			PluginPath: opts.PluginPath,
+		}
+
+		return server.Start(ctx)
 	})
 
 	return group.Wait()

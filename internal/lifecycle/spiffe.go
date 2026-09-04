@@ -36,6 +36,16 @@ const (
 	spiffeAgentContainerName = "spiffe-agent"
 	postgresContainerName    = "postgres"
 
+	// pluginVolumeName and pluginMountPath mirror the unexported constants of
+	// the same name in cnpg-i-machinery's pkg/pluginhelper/object: the
+	// "plugins" emptyDir volume it adds (and mounts into the postgres
+	// container) whenever object.InjectPluginInitContainerSidecarSpec is
+	// called, below. That call doesn't mount it into the sidecar itself, so
+	// it's mounted here explicitly to let the agent serve its CNPG-i Postgres
+	// service on a socket under it.
+	pluginVolumeName = "plugins"
+	pluginMountPath  = "/plugins"
+
 	// defaultPostgresUID and defaultPostgresGID mirror apiv1.ClusterSpec's
 	// own kubebuilder defaults for the `postgres` user/group inside the
 	// image, used when the Cluster doesn't override them.
@@ -159,6 +169,7 @@ func buildSpiffeAgentContainer(configuration *config.Configuration, postgresUID,
 			"--svid-key-file-name=" + configuration.SVIDKeyFileName,
 			"--svid-bundle-file-name=" + configuration.SVIDBundleFileName,
 			"--postgres-socket-dir=" + configuration.PostgresSocketDir,
+			"--plugin-path=" + pluginMountPath,
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{
@@ -169,6 +180,10 @@ func buildSpiffeAgentContainer(configuration *config.Configuration, postgresUID,
 			{
 				Name:      certsVolumeName,
 				MountPath: configuration.CertsMountPath,
+			},
+			{
+				Name:      pluginVolumeName,
+				MountPath: pluginMountPath,
 			},
 		},
 		SecurityContext: &corev1.SecurityContext{

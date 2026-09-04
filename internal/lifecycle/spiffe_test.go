@@ -166,16 +166,18 @@ func TestBuildSpiffeAgentContainer(t *testing.T) {
 		"--svid-key-file-name=svid_key.pem",
 		"--svid-bundle-file-name=svid_bundle.pem",
 		"--postgres-socket-dir=/controller/run",
+		"--plugin-path=/plugins",
 	}
 	if !slices.Equal(container.Args, wantArgs) {
 		t.Errorf("expected args %v, got %v", wantArgs, container.Args)
 	}
 
-	if len(container.VolumeMounts) != 2 {
-		t.Fatalf("expected exactly two volume mounts, got %d", len(container.VolumeMounts))
+	if len(container.VolumeMounts) != 3 {
+		t.Fatalf("expected exactly three volume mounts, got %d", len(container.VolumeMounts))
 	}
 	assertVolumeMount(t, container.VolumeMounts[0], workloadAPIVolumeName, "/run/spire/agent-sockets", true)
 	assertVolumeMount(t, container.VolumeMounts[1], certsVolumeName, configuration.CertsMountPath, false)
+	assertVolumeMount(t, container.VolumeMounts[2], pluginVolumeName, pluginMountPath, false)
 
 	if container.SecurityContext == nil ||
 		container.SecurityContext.RunAsUser == nil || *container.SecurityContext.RunAsUser != 26 ||
