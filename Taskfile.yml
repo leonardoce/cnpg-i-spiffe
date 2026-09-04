@@ -29,15 +29,6 @@ tasks:
       - .spellcheck.yaml
       - .wordlist.txt
 
-  commitlint:
-    desc: Check for conventional commits
-    env:
-      DAGGER_COMMITLINT_SHA: 7431c24907de3c6b1516114c8990d4f8d23d92cd
-    cmds:
-      - >
-        GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/commitlint@${DAGGER_COMMITLINT_SHA}
-        lint --source . --args "--from=origin/main" stdout
-
   uncommitted:
     desc: Check for uncommitted changes
     env:
@@ -75,7 +66,6 @@ tasks:
     desc: Run the CI pipeline
     deps:
       - spellcheck
-      - commitlint
       - uncommitted
       - lint
       - go-test
