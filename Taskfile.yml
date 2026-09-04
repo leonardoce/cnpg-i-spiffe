@@ -8,7 +8,6 @@ tasks:
   lint:
     desc: Run golangci-lint
     env:
-      # renovate: datasource=git-refs depName=golangci-lint lookupName=https://github.com/sagikazarmark/daggerverse currentValue=main
       DAGGER_GOLANGCI_LINT_SHA: ff27cd50f6b4eed2e3753c520632cd6099e1ce52
     cmds:
       - >
@@ -20,7 +19,6 @@ tasks:
   spellcheck:
     desc: Run spellcheck
     env:
-      # renovate: datasource=git-refs depName=spellcheck lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
       DAGGER_SPELLCHECK_SHA: 7431c24907de3c6b1516114c8990d4f8d23d92cd
     cmds:
       - >
@@ -34,7 +32,6 @@ tasks:
   commitlint:
     desc: Check for conventional commits
     env:
-      # renovate: datasource=git-refs depName=commitlint lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
       DAGGER_COMMITLINT_SHA: 7431c24907de3c6b1516114c8990d4f8d23d92cd
     cmds:
       - >
@@ -44,7 +41,6 @@ tasks:
   uncommitted:
     desc: Check for uncommitted changes
     env:
-      # renovate: datasource=git-refs depName=uncommitted lookupName=https://github.com/cloudnative-pg/daggerverse currentValue=main
       DAGGER_UNCOMMITTED_SHA: 7431c24907de3c6b1516114c8990d4f8d23d92cd
     cmds:
       - GITHUB_REF= dagger -s call -m github.com/cloudnative-pg/daggerverse/uncommitted@${DAGGER_UNCOMMITTED_SHA} check-uncommitted --source . stdout
@@ -54,9 +50,7 @@ tasks:
   go-test:
     desc: Run go test
     env:
-      # renovate: datasource=docker depName=golang versioning=semver
       GOLANG_IMAGE_VERSION: 1.26.5
-      # renovate: datasource=git-refs depName=go lookupName=https://github.com/sagikazarmark/daggerverse currentValue=main
       DAGGER_GO_SHA: ff27cd50f6b4eed2e3753c520632cd6099e1ce52
     cmds:
       - >
@@ -71,7 +65,6 @@ tasks:
   build-image:
     desc: Build a container image for the plugin
     env:
-      # renovate: datasource=git-refs depName=docker lookupName=https://github.com/purpleclay/daggerverse currentValue=main
       DAGGER_DOCKER_SHA: ee12c1a4a2630e194ec20c5a9959183e3a78c192
     cmds:
       - >
@@ -106,7 +99,6 @@ tasks:
       # where the branch name is suffixed with /merge. Prepend pr- to the branch name on PRs.
       IMAGE_VERSION: '{{regexReplaceAll "(\\d+)/merge" .GITHUB_REF_NAME "pr-${1}"}}'
     env:
-      # renovate: datasource=git-refs depName=docker lookupName=https://github.com/purpleclay/daggerverse currentValue=main
       DAGGER_DOCKER_SHA: ee12c1a4a2630e194ec20c5a9959183e3a78c192
     cmds:
       - >
@@ -131,7 +123,6 @@ tasks:
       # where the branch name is suffixed with /merge. Prepend pr- to the branch name on PRs.
       IMAGE_VERSION: '{{regexReplaceAll "(\\d+)/merge" .GITHUB_REF_NAME "pr-${1}"}}'
     env:
-      # renovate: datasource=git-refs depName=kustomize lookupName=https://github.com/sagikazarmark/daggerverse currentValue=main
       DAGGER_KUSTOMIZE_SHA: ff27cd50f6b4eed2e3753c520632cd6099e1ce52
     cmds:
       - >
@@ -154,7 +145,6 @@ tasks:
         - GITHUB_REF_NAME
         - GITHUB_TOKEN
     env:
-      # renovate: datasource=git-refs depName=gh lookupName=https://github.com/sagikazarmark/daggerverse
       DAGGER_GH_SHA: ff27cd50f6b4eed2e3753c520632cd6099e1ce52
     preconditions:
       - sh: "[[ {{.GITHUB_REF}} =~ 'refs/tags/v.*' ]]"

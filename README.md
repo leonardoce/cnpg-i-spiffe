@@ -147,23 +147,11 @@ CLI can install cert-manager with `cmctl x install`.)
 
 ### 4. Install the plugin
 
-If you're developing the plugin locally, build it and deploy it to the Kind
-cluster in one step with:
+Build it and deploy it to the Kind cluster in one step with:
 
 ``` shell
 task local-kind-deploy
 ```
-
-Otherwise, install a released version of the plugin by applying its manifest.
-The easiest way to obtain the manifest may be as an artifact created by the
-[`release-please` workflow](https://github.com/leonardoce/cnpg-i-spiffe/actions/workflows/release-please.yml).
-You can download it and apply it locally:
-
-``` shell
-kubectl apply -f LOCAL-FOLDER/manifest.yaml
-```
-
-<!-- TODO: reevaluate on release and set release-please to automatically update it-->
 
 ### 5. Create a Cluster resource
 
