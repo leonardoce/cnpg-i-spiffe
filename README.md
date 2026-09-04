@@ -102,7 +102,8 @@ kubectl exec -n spire spire-server-0 -- \
   -spiffeID spiffe://example.org/ns/default/sa/cluster-example \
   -parentID spiffe://example.org/ns/spire/sa/spire-agent \
   -selector k8s:ns:default \
-  -selector k8s:sa:cluster-example
+  -selector k8s:sa:cluster-example \
+  -dns streaming_replica
 ```
 
 You can verify the registration entries at any time with:
