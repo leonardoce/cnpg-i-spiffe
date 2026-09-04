@@ -185,6 +185,7 @@ func TestBuildSpiffeAgentContainer(t *testing.T) {
 
 	assertHealthCheckProbe(t, container.LivenessProbe, healthCheckLivenessPath)
 	assertHealthCheckProbe(t, container.ReadinessProbe, healthCheckReadinessPath)
+	assertHealthCheckProbe(t, container.StartupProbe, healthCheckReadinessPath)
 }
 
 func assertHealthCheckProbe(t *testing.T, probe *corev1.Probe, path string) {

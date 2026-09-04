@@ -49,6 +49,20 @@ const (
 	healthCheckPort          = 8081
 	healthCheckLivenessPath  = "/live"
 	healthCheckReadinessPath = "/ready"
+
+	// startupProbePeriodSeconds and startupProbeFailureThreshold bound how
+	// long the kubelet will wait, at Pod startup, for the sidecar's startup
+	// probe to succeed. Native sidecars (restartPolicy: Always init
+	// containers) only block the start of the next container - here, the
+	// postgres container itself - on their startup probe, not on their
+	// readiness probe: with no startup probe, the kubelet would consider the
+	// sidecar "started" as soon as its process is running, well before the
+	// first SVID is fetched from the Workload API. Reusing the readiness
+	// path here makes that same "first SVID written" condition gate
+	// postgres's start too. The ten-minute budget accounts for a SPIRE
+	// Server/Agent that isn't up yet when the Pod is scheduled.
+	startupProbePeriodSeconds    = 2
+	startupProbeFailureThreshold = 300
 )
 
 // injectWorkloadAPIVolume adds a hostPath volume exposing the SPIRE Agent's
@@ -161,6 +175,7 @@ func buildSpiffeAgentContainer(configuration *config.Configuration, postgresUID,
 			RunAsUser:  &postgresUID,
 			RunAsGroup: &postgresGID,
 		},
+		StartupProbe:   startupProbe(),
 		LivenessProbe:  healthCheckProbe(healthCheckLivenessPath),
 		ReadinessProbe: healthCheckProbe(healthCheckReadinessPath),
 	}
@@ -177,6 +192,21 @@ func healthCheckProbe(path string) *corev1.Probe {
 			},
 		},
 	}
+}
+
+// startupProbe builds the sidecar's startup probe. It polls the same
+// endpoint as the readiness probe (only healthy once the first SVID has
+// been written to disk), but on its own schedule: as a native sidecar, this
+// container's startup probe - not its readiness probe - is what the
+// kubelet waits on before starting the postgres container, so this is the
+// probe that actually withholds postgres's start until the first SVID is
+// available. See the startupProbePeriodSeconds/startupProbeFailureThreshold
+// docs above for the timing budget.
+func startupProbe() *corev1.Probe {
+	probe := healthCheckProbe(healthCheckReadinessPath)
+	probe.PeriodSeconds = startupProbePeriodSeconds
+	probe.FailureThreshold = startupProbeFailureThreshold
+	return probe
 }
 
 // scratchDataVolumeName is the name of the operator-managed volume backing
