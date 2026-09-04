@@ -1,5 +1,12 @@
 # CNPG-SPIFFE Plugin
 
+> [!WARNING]
+> This is a personal technical experiment, not a production-ready plugin. It
+> hasn't been security-reviewed, doesn't have a support policy, and its
+> behavior (including the [limitations](#limitations) below) may change
+> without notice. Use it to explore CNPG-i and SPIFFE/SPIRE integration, not
+> to run production PostgreSQL clusters.
+
 A [CNPG-I](https://github.com/cloudnative-pg/cnpg-i) plugin that gives
 [CloudNativePG](https://github.com/cloudnative-pg/cloudnative-pg/) PostgreSQL
 Pods access to X.509 SVIDs issued by a
