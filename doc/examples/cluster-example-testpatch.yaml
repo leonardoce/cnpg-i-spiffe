@@ -1,0 +1,26 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cluster-example
+spec:
+  instances: 1
+  imageName: ghcr.io/leonardoce/postgresql-trunk:20-standard-4
+
+  plugins:
+  - name: cnpg-i-spiffe.cloudnative-pg.io
+    parameters:
+      sidecarImage: registry.dev:5000/cnpg-i-spiffe:latest
+      spireAgentSocketPath: /run/spire/sockets/agent.sock
+      certsMountPath: /spiffe-certs
+      certsVolumeMedium: Memory
+
+  storage:
+    size: 1Gi
+
+  postgresql:
+    pg_hba:
+    - 'hostssl spiffedb spiffeuser all cert map=spiffemap clientname=URI'
+    pg_ident:
+    - spiffemap spiffe://example.org/ns/default/sa/cluster-example spiffeuser
+
+
